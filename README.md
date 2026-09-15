@@ -12,7 +12,7 @@ Authors:
 [Anqi Huang]
 
 <p align="left">
-  <img src="assets/iclr2026fire.png" width="300">
+  <img src="assets/iclr2026aipr.png" width="300">
 </p>
 
 For more information, please see our [project webpage](https://github.com/jgdlyy123-arch/AIPR/) and [paper](https://openreview.net/forum?id=ZSouL9NBLv)
@@ -28,15 +28,15 @@ As we conducted experiments in diverse domains (vision, language and RL), we use
 
 #### Reinforcement Learning (Fig 4) > [rl/dqn/README.md](rl/dqn/README.md) and [rl/sac/README.md](rl/sac/README.md)
 
-## 🔥FIRE implementation
-Stop worrying about plasticity loss, just apply FIRE before training on new data.
+## 🔥AIPR implementation
+Stop worrying about plasticity loss, just apply AIPR before training on new data.
 ```python
 import torch
 from torch import nn
 import numpy as np
 
 @torch.no_grad()
-def fire(model, iteration=10):
+def aipr(model, iteration=10):
     for name, m in model.named_modules():
         if isinstance(m, (nn.Linear, nn.Conv2d)):
             param = m.weight
@@ -146,8 +146,8 @@ python run_benchmark.py --algo ppo --env CIFAR100 --suite cifar100 --seeds 0 1 2
 | `--seeds` | 随机种子列表 | 0 1 2 3 4 |
 | `--total_steps` | RL 总训练步数 | 1000000 |
 | `--n_epochs` | 视觉任务训练轮数 | 200 |
-| `--reinit_interval` | FIRE 重初始化间隔步数 | 50000 |
-| `--fire_iters` | Newton-Schulz 迭代次数 | 10 |
+| `--reinit_interval` | AIPR 重初始化间隔步数 | 50000 |
+| `--aipr_iters` | Newton-Schulz 迭代次数 | 10 |
 | `--hidden_dim` | 隐藏层维度 | 256 |
 | `--lr` | 学习率 | 3e-4 |
 | `--batch_size` | 批次大小 | 256 |
@@ -162,7 +162,7 @@ python run_benchmark.py --algo ppo --env CIFAR100 --suite cifar100 --seeds 0 1 2
 
 ### 输出格式
 
-结果保存在 `result/` 目录，命名规则: `FIRE-{任务名}-{YYYYMMDD_HHMMSS}-seed{N}`
+结果保存在 `result/` 目录，命名规则: `AIPR-{任务名}-{YYYYMMDD_HHMMSS}-seed{N}`
 - `.txt`: 纯文本格式，包含所有指标
 - `.xlsx`: Excel 格式，包含 Summary / EpisodeMetrics / VisionMetrics 多个工作表
 
@@ -184,7 +184,7 @@ If you find our work useful, please consider citing the paper as follows:
 
 ---
 
-## AIPR-fire Extension: Adaptive Isometric Policy Regularization
+## AIPR Extension: Adaptive Isometric Policy Regularization
 
 This fork extends FIRE with **AIPR2** — a continuous, adaptive replacement for FIRE's discrete reinitialization.
 
@@ -212,12 +212,12 @@ L_AIPR = λ_t · Σ_l DfI(W_l)
 - `aipr_tau=1.0` — DfI threshold
 - `aipr_alpha=0.5` — sigmoid temperature
 
-### Run AIPR-fire (SAC)
+### Run AIPR (SAC)
 ```bash
 cd rl/sac && bash scripts/single_run/simba_rr2_aipr.sh
 ```
 
-### Run AIPR-fire (DQN)
+### Run AIPR (DQN)
 ```bash
 cd rl/dqn
 python -m cleanrl.dqn_atari --env-id BreakoutNoFrameskip-v4 --seed 1 --use-aipr

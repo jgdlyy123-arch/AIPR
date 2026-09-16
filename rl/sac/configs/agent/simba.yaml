@@ -1,0 +1,72 @@
+##################################################################################
+# Simba + AIPR (Adaptive Isometric Policy Regularization)
+# AIPR 将 AIPR 的 DfI 约束转化为连续自适应正则化，无需指定任务边界
+##################################################################################
+
+agent_type: 'simba'
+
+seed: ${seed}
+num_train_envs: ${env.num_train_envs}
+max_episode_steps: ${env.max_episode_steps}
+normalize_observation: true
+normalize_reward: false
+normalized_g_max: 0.0
+
+load_only_param: true    # do not load optimizer
+load_param_key: null     # load designated key
+load_observation_normalizer: true
+load_reward_normalizer: true
+
+actor_block_type: 'residual'
+actor_num_blocks: 1
+actor_hidden_dim: 128
+actor_learning_rate_init: 1e-4
+actor_learning_rate_end: 1e-4
+actor_learning_rate_decay_rate: 1.0 
+actor_learning_rate_decay_step: ${eval:'int(${agent.actor_learning_rate_decay_rate} * ${num_interaction_steps} * ${updates_per_interaction_step})'}
+actor_weight_decay: 1e-2
+
+critic_block_type: 'residual'
+critic_num_blocks: 2
+critic_hidden_dim: 512
+critic_learning_rate_init: 1e-4
+critic_learning_rate_end: 1e-4
+critic_learning_rate_decay_rate: 1.0 
+critic_learning_rate_decay_step: ${eval:'int(${agent.critic_learning_rate_decay_rate} * ${num_interaction_steps} * ${updates_per_interaction_step})'}
+critic_weight_decay: 1e-2
+critic_use_cdq: ${env.episodic}
+
+critic_use_categorical: false
+critic_num_bins: 0.0
+categorical_min_v: ${eval:'-${agent.normalized_g_max}'}
+categorical_max_v: ${eval:'${agent.normalized_g_max}'}
+
+temp_target_entropy: null # entropy_coef * action_dim
+temp_target_entropy_coef: -0.5 
+temp_initial_value: 0.01
+temp_learning_rate: 1e-4
+temp_weight_decay: 0.0
+
+target_tau: 0.005
+gamma: ${gamma}
+n_step: ${n_step}
+
+mixed_precision: false
+# AIPR uses continuous regularization; set reinit_type to 'aipr' to disable discrete reinit.
+# To run pure AIPR baseline, set reinit_type: 'aipr' and configure reinit_update_steps.
+reinit_type: 'aipr'
+scaler_type: 'muon'
+ns_steps: 10
+reinit_on_load: false
+reinit_update_steps: []
+
+##################################################################################
+# AIPR: Adaptive Isometric Policy Regularization
+# lambda_t = lambda_0 * sigmoid((DfI_avg - tau) / alpha)
+# - aipr_lambda_0: base regularization strength (tune: 1e-3 ~ 1e-1)
+# - aipr_tau:     DfI threshold; regularization activates above this (tune: 0.5 ~ 2.0)
+# - aipr_alpha:   sigmoid temperature; smaller = sharper gate (tune: 0.3 ~ 1.0)
+##################################################################################
+aipr_lambda_0: 0.01
+aipr_tau: 1.0
+aipr_alpha: 0.5

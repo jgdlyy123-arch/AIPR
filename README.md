@@ -1,225 +1,378 @@
-
 # AIPR: Adaptive Isometric Plasticity Regularization for Reinforcement Learning
 
-This repository contains the code for the paper:  
-**"AIPR: Adaptive Isometric Plasticity Regularization for Reinforcement Learning"**  
-Authors: 
-[Jianghui Sang]
-[Guangdi Jiang](https://github.com/jgdlyy123-arch) 
-[Jun Huang]
-[Yongli Wang]
-[Hua Yang] 
-[Anqi Huang]
+Official implementation of:
 
-<p align="left">
-  <img src="assets/iclr2026aipr.png" width="300">
-</p>
+**Adaptive Isometric Plasticity Regularization for Reinforcement
+Learning (AIPR)**
 
-For more information, please see our [project webpage](https://github.com/jgdlyy123-arch/AIPR/) and [paper](https://openreview.net/forum?id=ZSouL9NBLv)
+Submitted to **ICLR 2027 Conference**
 
+**Authors**
 
-## 📖 Codebase
+-   Jianghui Sang`<sup>`{=html}1`</sup>`{=html}
+-   Guangdi Jiang`<sup>`{=html}1`</sup>`{=html}
+-   Yongli Wang`<sup>`{=html}2`</sup>`{=html}
+-   Anqi Huang`<sup>`{=html}3`</sup>`{=html}
+-   Hua Yang`<sup>`{=html}2`</sup>`{=html}
+-   Jun Huang`<sup>`{=html}1`</sup>`{=html}
 
-As we conducted experiments in diverse domains (vision, language and RL), we used different settings for each of them. Please refer below to set up and run experiments:
+Affiliations:
 
-#### Continual Visual Learning (Fig 2) > [vision/README.md](vision/README.md)
+1.  Anhui University of Technology\
+2.  Nanjing University of Science and Technology\
+3.  Shandong Technology and Business University
 
-#### Continual Pretraining of LLMs (Fig 3) > [language/README.md](language/README.md)
+Keywords: Reinforcement Learning, Actor-Critic, Plasticity Loss,
+Adaptive Regularization
 
-#### Reinforcement Learning (Fig 4) > [rl/dqn/README.md](rl/dqn/README.md) and [rl/sac/README.md](rl/sac/README.md)
+------------------------------------------------------------------------
 
-## 🔥AIPR implementation
-Stop worrying about plasticity loss, just apply AIPR before training on new data.
-```python
-import torch
-from torch import nn
-import numpy as np
+## 1. Overview
 
-@torch.no_grad()
-def aipr(model, iteration=10):
-    for name, m in model.named_modules():
-        if isinstance(m, (nn.Linear, nn.Conv2d)):
-            param = m.weight
-            weight_matrix = param.data.detach().clone()
-            if weight_matrix.ndim == 4: # cnn
-                ortho_weight_matrix = torch.zeros_like(weight_matrix)
-                for i in range(weight_matrix.shape[2]):
-                    for j in range(weight_matrix.shape[3]):
-                        ortho_weight_matrix[:,:,i,j] = newton_schulz(weight_matrix[:,:,i,j], num_iters=iteration)
-            else: # linear
-                ortho_weight_matrix = newton_schulz(weight_matrix, num_iters=iteration)
+Deep reinforcement learning (DRL) agents often suffer from **plasticity
+loss** during long-term training. Although the agent can initially learn
+effective representations, continuous optimization may gradually reduce
+the network's ability to adapt to new information.
 
-            # scale = sqrt(d_out/d_in) / kernel_size
-            kernel_size = weight_matrix.shape[2]*weight_matrix.shape[3] if weight_matrix.ndim==4 else 1.0
-            scale = np.sqrt(weight_matrix.shape[0]/weight_matrix.shape[1]) / kernel_size
-            ortho_weight_matrix *= scale
-            param.data = ortho_weight_matrix
+Existing approaches based on **Deviation from Isometry (DfI)** usually
+treat geometric degradation as a trigger condition. When the weight
+matrix deviates from an approximately isometric structure, these methods
+perform discrete operations such as parameter reinitialization.
 
-def newton_schulz(matrix, num_iters=10):
-    a, b = (1.5, -0.5)
-    assert matrix.ndim == 2
-    do_transpose = matrix.size(1) > matrix.size(0)
+However, hard-triggered reinitialization introduces several limitations:
 
-    X = matrix
-    if do_transpose:
-        X = X.T
+-   It interrupts the continuous optimization trajectory.
+-   Abrupt parameter changes may disturb the policy distribution.
+-   The same fixed intervention strength cannot adapt to different
+    training stages.
+-   Actor and Critic networks may have different geometric degradation
+    patterns.
 
-    X = X / X.norm()
-    for _ in range(num_iters):
-        A = X.T @ X
-        X = a * X + b * X @ A
+To address these issues, we propose:
 
-    if do_transpose:
-        X = X.T
-    return X
+> **Adaptive Isometric Plasticity Regularization (AIPR)**
+
+AIPR reformulates DfI from a discrete intervention criterion into a
+differentiable geometric regularization objective, enabling continuous
+preservation of network plasticity during reinforcement learning.
+
+------------------------------------------------------------------------
+
+# 2. Method: Adaptive Isometric Plasticity Regularization
+
+## 2.1 DfI-based Geometric Regularization
+
+For a weight matrix:
+
+\[ W `\in `{=tex}R\^{m `\times `{=tex}n} \]
+
+AIPR measures the deviation from an isometric structure through DfI:
+
+\[ DfI(W) \]
+
+Unlike previous methods that only check whether DfI exceeds a threshold,
+AIPR directly incorporates DfI into gradient optimization.
+
+The final objective becomes:
+
+\[ L = L\_{RL}+`\lambda`{=tex}*t L*{AIPR} \]
+
+where:
+
+-   (L\_{RL}): original reinforcement learning objective
+-   (L\_{AIPR}): geometric regularization term
+-   (`\lambda`{=tex}\_t): adaptive regularization strength
+
+------------------------------------------------------------------------
+
+## 2.2 Adaptive DfI-aware Gating
+
+AIPR introduces a differentiable gating mechanism:
+
+\[ `\lambda`{=tex}\_t=f(DfI_t) \]
+
+The regularization strength changes automatically according to the
+current network geometry.
+
+Advantages:
+
+-   Stronger constraint when geometric degradation increases.
+-   Weaker constraint when the network maintains healthy plasticity.
+-   Avoids manually selecting fixed regularization coefficients.
+
+------------------------------------------------------------------------
+
+## 2.3 Actor-Critic Specific Regularization
+
+Because Actor and Critic networks may experience different geometric
+changes, AIPR separately estimates:
+
+-   Actor geometric state
+-   Critic geometric state
+
+and generates independent adaptive regularization weights:
+
+\[ `\lambda`{=tex}\_{`\pi`{=tex}},`\lambda`{=tex}\_v \]
+
+This preserves the original Actor-Critic learning coupling while
+allowing independent geometric adaptation.
+
+------------------------------------------------------------------------
+
+# 3. Repository Structure
+
+    AIPR/
+    │
+    ├── run_benchmark.py          # Unified benchmark entry
+    ├── main_aipr.sh              # AIPR experiment commands
+    ├── main_fire.sh              # FIRE baseline experiments
+    │
+    ├── rl/
+    │   ├── dqn/                  # Atari DQN experiments
+    │   │   ├── cleanrl/
+    │   │   │   ├── dqn_atari.py
+    │   │   │   └── aipr_regularizer_torch.py
+    │   │
+    │   └── sac/                  # SAC experiments
+    │       ├── configs/
+    │       ├── scripts/
+    │       └── run_online.py
+    │
+    ├── vision/                   # Vision continual learning experiments
+    │
+    └── language/                 # Language model continual learning experiments
+
+------------------------------------------------------------------------
+
+# 4. Supported Benchmarks
+
+AIPR supports experiments across multiple reinforcement learning
+environments.
+
+## Continuous Control
+
+### MuJoCo
+
+Supported environments:
+
+-   Ant
+-   HalfCheetah
+-   Hopper
+-   Walker2d
+-   Humanoid
+
+Example:
+
+``` bash
+python run_benchmark.py \
+--mode rl_ppo \
+--env Ant-v5 \
+--suite mujoco \
+--seeds 0 1 2 3 4 \
+--total_steps 5000000
 ```
----
 
-## � 统一基准测试 (run_benchmark.py)
+------------------------------------------------------------------------
 
-为方便跨环境对比实验，我们提供了 `run_benchmark.py` 作为统一入口，支持所有环境和标准化结果保存。
+## DMControl
 
-### 环境要求
+Supported environments:
 
-| 依赖项 | 版本 |
-|--------|------|
-| Python | ≥ 3.10 |
-| CUDA | 12.4 |
-| cuDNN | 9.1 |
-| PyTorch | ≥ 2.3.0 |
-| torchvision | ≥ 0.18.0 |
-| gymnasium | ≥ 0.29.0 |
-| openpyxl | ≥ 3.1.0 |
+-   Cartpole
+-   Cheetah
+-   Walker
+-   Finger
+-   Quadruped
 
-### 安装
+Example:
 
-```bash
+``` bash
+python run_benchmark.py \
+--mode rl_ppo \
+--env dm_control/cartpole-swingup-v0 \
+--suite dmcontrol \
+--seeds 0 1 2 3 4 \
+--total_steps 1000000
+```
+
+------------------------------------------------------------------------
+
+## Robosuite
+
+Supported tasks:
+
+-   Lift
+-   Stack
+-   Door
+-   NutAssembly
+
+------------------------------------------------------------------------
+
+## CARL
+
+Supported environments:
+
+-   CARL Acrobot
+-   CARL CartPole
+-   CARL MountainCarContinuous
+-   CARL Pendulum
+-   CARL Quadruped
+
+------------------------------------------------------------------------
+
+## Atari
+
+AIPR supports pixel-based reinforcement learning:
+
+-   Pong
+-   Breakout
+-   Seaquest
+-   Qbert
+-   SpaceInvaders
+-   BeamRider
+-   Phoenix
+-   Gravitar
+
+Example:
+
+``` bash
+python run_benchmark.py \
+--mode rl_ppo \
+--env ALE/Pong-v5 \
+--suite ale \
+--seeds 0 1 2 3 4 \
+--total_steps 100000000
+```
+
+------------------------------------------------------------------------
+
+# 5. Installation
+
+Recommended environment:
+
+  Package     Version
+  ----------- ---------
+  Python      \>=3.10
+  CUDA        12.4
+  PyTorch     \>=2.3
+  Gymnasium   \>=0.29
+
+Install dependencies:
+
+``` bash
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
-pip install gymnasium[mujoco,atari,accept-rom-license] dm_control metaworld robosuite ale-py openpyxl
-pip install humanoid-bench carl-bench
+
+pip install \
+gymnasium[mujoco,atari,accept-rom-license] \
+dm_control \
+robosuite \
+metaworld \
+carl-bench \
+humanoid-bench \
+openpyxl
 ```
 
-### 运行命令
+------------------------------------------------------------------------
 
-```bash
-# MuJoCo
-python run_benchmark.py --algo sac --env HalfCheetah-v4 --suite mujoco --seeds 0 1 2 3 4 --total_steps 1000000
+# 6. Running Experiments
 
-# DMControl
-python run_benchmark.py --algo sac --env cartpole-swingup --suite dmc --seeds 0 1 2 3 4 --total_steps 1000000
+## AIPR PPO
 
-# Meta-World
-python run_benchmark.py --algo sac --env reach-v2 --suite metaworld --seeds 0 1 2 3 4 --total_steps 1000000
+Example:
 
-# RoboSuite
-python run_benchmark.py --algo sac --env Lift --suite robosuite --seeds 0 1 2 3 4 --total_steps 1000000
-
-# Gridworld
-python run_benchmark.py --algo ppo --env gridworld --suite gridworld --seeds 0 1 2 3 4 --total_steps 200000
-
-# ALE / Atari
-python run_benchmark.py --algo ppo --env ALE/Pong-v5 --suite ale --seeds 0 1 2 3 4 --total_steps 10000000
-
-# CARL-DMCQuadruped
-python run_benchmark.py --algo sac --env CARLDmcQuadrupedEnv --suite carl_dmcquadruped --seeds 0 1 2 3 4 --total_steps 1000000
-
-# CARL-LunarLander
-python run_benchmark.py --algo ppo --env CARLLunarLanderEnv --suite carl_lunarlander --seeds 0 1 2 3 4 --total_steps 1000000
-
-# HumanoidBench
-python run_benchmark.py --algo sac --env h1hand-walk-v0 --suite humanoidbench --seeds 0 1 2 3 4 --total_steps 1000000
-
-# CIFAR-10
-python run_benchmark.py --algo ppo --env CIFAR10 --suite cifar10 --seeds 0 1 2 3 4 --n_epochs 200
-
-# CIFAR-100
-python run_benchmark.py --algo ppo --env CIFAR100 --suite cifar100 --seeds 0 1 2 3 4 --n_epochs 200
+``` bash
+python train.py \
+--algo ppo \
+--env HalfCheetah-v4 \
+--suite mujoco \
+--seeds 0 1 2 3 4 \
+--total_steps 5000000
 ```
 
-### 参数说明
+------------------------------------------------------------------------
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--algo` | 算法选择 (sac / ppo) | sac |
-| `--env` | 环境名称 | HalfCheetah-v4 |
-| `--suite` | 环境套件 | mujoco |
-| `--seeds` | 随机种子列表 | 0 1 2 3 4 |
-| `--total_steps` | RL 总训练步数 | 1000000 |
-| `--n_epochs` | 视觉任务训练轮数 | 200 |
-| `--reinit_interval` | AIPR 重初始化间隔步数 | 50000 |
-| `--aipr_iters` | Newton-Schulz 迭代次数 | 10 |
-| `--hidden_dim` | 隐藏层维度 | 256 |
-| `--lr` | 学习率 | 3e-4 |
-| `--batch_size` | 批次大小 | 256 |
-| `--gamma` | 折扣因子 | 0.99 |
-| `--result_dir` | 结果保存目录 | result |
+## AIPR SAC
 
-### 评估指标
+Example:
 
-**RL 任务**: Mean Return, Sample Efficiency, Learning Curves, 5-seed 标准差, Normalized Return, Sample Efficiency Curves, Success Rate (Meta-World/RoboSuite)
-
-**视觉任务**: Test Accuracy, Validation Loss, Best Test Accuracy
-
-### 输出格式
-
-结果保存在 `result/` 目录，命名规则: `AIPR-{任务名}-{YYYYMMDD_HHMMSS}-seed{N}`
-- `.txt`: 纯文本格式，包含所有指标
-- `.xlsx`: Excel 格式，包含 Summary / EpisodeMetrics / VisionMetrics 多个工作表
-
-### RTX 4090 性能参考
-
-| 环境 | 步数 | 预计时间 |
-|------|------|----------|
-| HalfCheetah-v4 (SAC) | 1M | ~30 min |
-| ALE/Pong-v5 (PPO) | 10M | ~3 h |
-| CIFAR-10 (200 epochs) | - | ~20 min |
-
----
-
-## �📄 Citation
-If you find our work useful, please consider citing the paper as follows:
+``` bash
+python run_benchmark.py \
+--mode rl_sac \
+--env HalfCheetah-v4 \
+--suite mujoco \
+--seeds 0 1 2 3 4
 ```
 
+------------------------------------------------------------------------
+
+# 7. Implementation Details
+
+## AIPR Regularizer
+
+The main implementation is located at:
+
+    rl/dqn/cleanrl/aipr_regularizer_torch.py
+
+The module implements:
+
+-   DfI computation
+-   Adaptive regularization weight calculation
+-   Differentiable geometric constraint
+-   Actor/Critic independent regularization
+
+------------------------------------------------------------------------
+
+## Experiment Configuration
+
+Important parameters:
+
+  Parameter            Description
+  -------------------- -----------------------------------
+  DfI interval         Frequency of geometry measurement
+  lambda_max           Maximum regularization strength
+  gate function        Adaptive DfI-aware controller
+  actor coefficient    Actor regularization weight
+  critic coefficient   Critic regularization weight
+
+------------------------------------------------------------------------
+
+# 8. Experimental Goal
+
+AIPR evaluates whether continuous geometric regulation can preserve
+neural network plasticity without disrupting optimization.
+
+The experiments compare AIPR with:
+
+-   Vanilla training
+-   FIRE
+-   Parseval regularization
+-   Other plasticity preservation methods
+
+Evaluation metrics include:
+
+-   Episodic return
+-   Learning speed
+-   Long-term optimization stability
+-   Network geometric indicators
+
+------------------------------------------------------------------------
+
+# 9. Citation
+
+If you use this repository, please cite:
+
+``` bibtex
+@inproceedings{
+sang2026aipr,
+title={Adaptive Isometric Plasticity Regularization for Reinforcement Learning},
+author={Jianghui Sang and Guangdi Jiang and Yongli Wang and Anqi Huang and Hua Yang and Jun Huang},
+booktitle={International Conference on Learning Representations},
+year={2027}
+}
 ```
 
----
+------------------------------------------------------------------------
 
-## AIPR Extension: Adaptive Isometric Policy Regularization
+# 10. License
 
-This fork extends FIRE with **AIPR2** — a continuous, adaptive replacement for FIRE's discrete reinitialization.
-
-### Core Idea
-
-| | FIRE (original) | AIPR (this fork) |
-|---|---|---|
-| Mechanism | Discrete reinit via Newton-Schulz | Continuous adaptive loss term |
-| Trigger | Fixed update steps | Automatic via DfI threshold |
-| Task boundary needed | Yes | No |
-
-**AIPR loss:**
-```
-DfI(W) = ||W^T W - I||_F^2
-λ_t = λ_0 · sigmoid((DfI_avg − τ) / α)
-L_AIPR = λ_t · Σ_l DfI(W_l)
-```
-
-### New Files
-- `rl/sac/scale_rl/agents/simba/aipr_regularizer.py` — JAX AIPR regularizer
-- `rl/dqn/cleanrl/aipr_regularizer_torch.py` — PyTorch AIPR regularizer
-
-### Key Hyperparameters
-- `aipr_lambda_0=0.01` — base regularization strength
-- `aipr_tau=1.0` — DfI threshold
-- `aipr_alpha=0.5` — sigmoid temperature
-
-### Run AIPR (SAC)
-```bash
-cd rl/sac && bash scripts/single_run/simba_rr2_aipr.sh
-```
-
-### Run AIPR (DQN)
-```bash
-cd rl/dqn
-python -m cleanrl.dqn_atari --env-id BreakoutNoFrameskip-v4 --seed 1 --use-aipr
-```
-
+This project is released under the CC BY 4.0 license.

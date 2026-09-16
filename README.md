@@ -364,7 +364,7 @@ If you use this repository, please cite:
 ``` bibtex
 @inproceedings{
 sang2026aipr,
-title={Adaptive Isometric Plasticity Regularization for Reinforcement Learning},
+title={AIPR: Adaptive Isometric Plasticity Regularization for Reinforcement Learning},
 author={Jianghui Sang and Guangdi Jiang and Yongli Wang and Anqi Huang and Hua Yang and Jun Huang},
 booktitle={International Conference on Learning Representations},
 year={2027}

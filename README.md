@@ -7,21 +7,6 @@ Learning (AIPR)**
 
 Submitted to **ICLR 2027 Conference**
 
-**Authors**
-
--   Jianghui Sang`<sup>`{=html}1`</sup>`{=html}
--   Guangdi Jiang`<sup>`{=html}1`</sup>`{=html}
--   Yongli Wang`<sup>`{=html}2`</sup>`{=html}
--   Anqi Huang`<sup>`{=html}3`</sup>`{=html}
--   Hua Yang`<sup>`{=html}2`</sup>`{=html}
--   Jun Huang`<sup>`{=html}1`</sup>`{=html}
-
-Affiliations:
-
-1.  Anhui University of Technology\
-2.  Nanjing University of Science and Technology\
-3.  Shandong Technology and Business University
-
 Keywords: Reinforcement Learning, Actor-Critic, Plasticity Loss,
 Adaptive Regularization
 
@@ -174,29 +159,6 @@ python run_benchmark.py \
 
 ------------------------------------------------------------------------
 
-## DMControl
-
-Supported environments:
-
--   Cartpole
--   Cheetah
--   Walker
--   Finger
--   Quadruped
-
-Example:
-
-``` bash
-python run_benchmark.py \
---mode rl_ppo \
---env dm_control/cartpole-swingup-v0 \
---suite dmcontrol \
---seeds 0 1 2 3 4 \
---total_steps 1000000
-```
-
-------------------------------------------------------------------------
-
 ## Robosuite
 
 Supported tasks:
@@ -220,32 +182,6 @@ Supported environments:
 
 ------------------------------------------------------------------------
 
-## Atari
-
-AIPR supports pixel-based reinforcement learning:
-
--   Pong
--   Breakout
--   Seaquest
--   Qbert
--   SpaceInvaders
--   BeamRider
--   Phoenix
--   Gravitar
-
-Example:
-
-``` bash
-python run_benchmark.py \
---mode rl_ppo \
---env ALE/Pong-v5 \
---suite ale \
---seeds 0 1 2 3 4 \
---total_steps 100000000
-```
-
-------------------------------------------------------------------------
-
 # 5. Installation
 
 Recommended environment:
@@ -264,7 +200,6 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 
 pip install \
 gymnasium[mujoco,atari,accept-rom-license] \
-dm_control \
 robosuite \
 metaworld \
 carl-bench \
@@ -355,21 +290,6 @@ Evaluation metrics include:
 -   Long-term optimization stability
 -   Network geometric indicators
 
-------------------------------------------------------------------------
-
-# 9. Citation
-
-If you use this repository, please cite:
-
-``` bibtex
-@inproceedings{
-sang2026aipr,
-title={AIPR: Adaptive Isometric Plasticity Regularization for Reinforcement Learning},
-author={Jianghui Sang and Guangdi Jiang and Yongli Wang and Anqi Huang and Hua Yang and Jun Huang},
-booktitle={International Conference on Learning Representations},
-year={2027}
-}
-```
 
 ------------------------------------------------------------------------
 
